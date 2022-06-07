@@ -205,7 +205,7 @@ class InOperation extends BaseOperation {
             return values.map(v => {
                 try {
                     return new ObjectId(v);
-                } catch (err) { 
+                } catch (err) {
                     return v;
                 }
             });
@@ -411,7 +411,7 @@ class ConnectionGenerator<T> {
 
     }
 
-    public async generate(pagination: Pagination): Promise<Connection<T>> {
+    public async generate(pagination?: Pagination): Promise<Connection<T>> {
         const totalCount = await this.collection.countDocuments(this.filter);
         const cursor = this.collection.find(this.filter).sort(this.sort);
 
@@ -420,8 +420,10 @@ class ConnectionGenerator<T> {
         let hasPreviousPage: boolean = false;
         let startIndex: number = 0;
         let endIndex: number = 0;
-        // 找下一頁
-        if (pagination.first) {
+        if (!pagination) {
+            endIndex = totalCount;
+        }
+        else if (pagination.first) {
             const after = this.base64ToNumber(pagination.after);
             startIndex = pagination.after ? after + 1 : 0;
             endIndex = startIndex + pagination.first;
@@ -435,9 +437,7 @@ class ConnectionGenerator<T> {
             if (after > 0)
                 hasPreviousPage = true;
         }
-
-        // 找上一頁
-        if (pagination.last) {
+        else if (pagination.last) { // 找上一頁
             const before = pagination.before ? this.base64ToNumber(pagination.before) : totalCount;
             startIndex = before - pagination.last;
             endIndex = before;
@@ -497,21 +497,23 @@ class ConnectionGenerator<T> {
 }
 
 async function queryConnection<T>(args: any, collection?: Collection<T>): Promise<Connection<T>> {
-    const wherInput = args.where;
-    const filter = MongoFilterConverter.convert(wherInput);
+    let filter: any = {};
+    let order: Sort = {};
+    let pagination: any;
+    if (args) {
+        filter = MongoFilterConverter.convert(args.where);
 
-    const orderInputs = args.order as any[];
-    const order = MongoOrderConverter.convert(orderInputs);
-
-    const pagination: Pagination = {
-        first: args.first,
-        last: args.last,
-        before: args.before,
-        after: args.after,
-    };
-
+        const orderInputs = args.order as any[];
+        order = MongoOrderConverter.convert(orderInputs);
+        pagination = {
+            first: args.first,
+            last: args.last,
+            before: args.before,
+            after: args.after,
+        };
+    }
     const generator = new ConnectionGenerator(collection!, filter, order);
-    return generator.generate(pagination);
+    return generator.generate(pagination as Pagination);
 }
 
 
